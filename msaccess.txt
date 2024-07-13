@@ -1,0 +1,151 @@
+server.port=8085
+
+# MS Access Database configuration for Spring Batch metadata
+spring.datasource.metadata.url=jdbc:ucanaccess://C:/path/to/metadata.accdb
+spring.datasource.metadata.driver-class-name=net.ucanaccess.jdbc.UcanaccessDriver
+spring.datasource.metadata.username=
+spring.datasource.metadata.password=
+
+# MS Access Database configuration for actual application data
+spring.datasource.data.url=jdbc:ucanaccess://C:/path/to/companydatabase.accdb
+spring.datasource.data.driver-class-name=net.ucanaccess.jdbc.UcanaccessDriver
+spring.datasource.data.username=
+spring.datasource.data.password=
+
+# Hibernate configuration
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.SQLServerDialect
+spring.jpa.show-sql=true
+
+
+----------------------------------------------------------------------------------------
+
+package com.GenAIsolutions.ProofofConcept.Config;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+
+import javax.persistence.EntityManagerFactory;
+import javax.sql.DataSource;
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class DataSourceConfig {
+
+    @Bean(name = "metadataDataSourceProperties")
+    @ConfigurationProperties("spring.datasource.metadata")
+    public DataSourceProperties metadataDataSourceProperties() {
+        return new DataSourceProperties();
+    }
+
+    @Primary
+    @Bean(name = "metadataDataSource")
+    public DataSource metadataDataSource(@Qualifier("metadataDataSourceProperties") DataSourceProperties properties) {
+        return properties.initializeDataSourceBuilder().build();
+    }
+
+    @Bean(name = "dataDataSourceProperties")
+    @ConfigurationProperties("spring.datasource.data")
+    public DataSourceProperties dataDataSourceProperties() {
+        return new DataSourceProperties();
+    }
+
+    @Bean(name = "dataDataSource")
+    public DataSource dataDataSource(@Qualifier("dataDataSourceProperties") DataSourceProperties properties) {
+        return properties.initializeDataSourceBuilder().build();
+    }
+
+    @Bean(name = "entityManagerFactory")
+    public LocalContainerEntityManagerFactoryBean entityManagerFactory(@Qualifier("dataDataSource") DataSource dataDataSource) {
+        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
+        em.setDataSource(dataDataSource);
+        em.setPackagesToScan("com.GenAIsolutions.ProofofConcept.entity");
+
+        HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
+        em.setJpaVendorAdapter(vendorAdapter);
+
+        // Configure Hibernate properties for MS Access
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect"); // Use SQL Server dialect for MS Access
+        properties.put("hibernate.hbm2ddl.auto", "update");
+        em.setJpaPropertyMap(properties);
+
+        return em;
+    }
+
+    @Bean(name = "customTransactionManager")
+    public JpaTransactionManager customTransactionManager(@Qualifier("entityManagerFactory") EntityManagerFactory entityManagerFactory) {
+        return new JpaTransactionManager(entityManagerFactory);
+    }
+
+    @Bean(name = "batchTransactionManager")
+    public DataSourceTransactionManager batchTransactionManager(@Qualifier("metadataDataSource") DataSource metadataDataSource) {
+        return new DataSourceTransactionManager(metadataDataSource);
+    }
+}
+
+--------------------------------------------------------------------------
+
+CREATE TABLE Company (
+    id INT PRIMARY KEY,
+    name VARCHAR(255),
+    industry VARCHAR(255)
+);
+
+CREATE TABLE Store (
+    id INT PRIMARY KEY,
+    companyId INT,
+    location VARCHAR(255),
+    CONSTRAINT FK_Company FOREIGN KEY (companyId) REFERENCES Company(id)
+);
+
+
+-----------------------------------------------------------------------------
+
+INSERT INTO Company (id, name, industry)
+VALUES (1, 'ABC Corporation', 'Technology');
+
+INSERT INTO Company (id, name, industry)
+VALUES (2, 'XYZ Enterprises', 'Finance');
+
+INSERT INTO Company (id, name, industry)
+VALUES (3, '123 Industries', 'Retail');
+
+INSERT INTO Company (id, name, industry)
+VALUES (4, 'Acme Corporation', 'Manufacturing');
+
+
+------------------------------------------------------------------------------
+
+INSERT INTO Store (id, companyId, location)
+VALUES (1, 1, 'New York');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (2, 1, 'Los Angeles');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (3, 2, 'London');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (4, 2, 'Paris');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (5, 3, 'Tokyo');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (6, 3, 'Sydney');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (7, 4, 'Berlin');
+
+INSERT INTO Store (id, companyId, location)
+VALUES (8, 4, 'Moscow');
