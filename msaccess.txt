@@ -149,3 +149,88 @@ VALUES (7, 4, 'Berlin');
 
 INSERT INTO Store (id, companyId, location)
 VALUES (8, 4, 'Moscow');
+----------------------------------------------------------------------
+
+-- Create Spring Batch meta tables
+
+-- Create batch_job_instance table
+CREATE TABLE batch_job_instance (
+    job_instance_id COUNTER PRIMARY KEY,
+    version LONG,
+    job_name VARCHAR(100) NOT NULL,
+    job_key VARCHAR(32) NOT NULL,
+    CONSTRAINT job_inst_un UNIQUE (job_name, job_key)
+);
+
+-- Create batch_job_execution table
+CREATE TABLE batch_job_execution (
+    job_execution_id COUNTER PRIMARY KEY,
+    version LONG,
+    job_instance_id LONG NOT NULL,
+    create_time DATETIME NOT NULL,
+    start_time DATETIME,
+    end_time DATETIME,
+    status VARCHAR(10),
+    exit_code VARCHAR(2500),
+    exit_message VARCHAR(2500),
+    last_updated DATETIME,
+    job_configuration_location VARCHAR(2500),
+    CONSTRAINT job_inst_exec_fk FOREIGN KEY (job_instance_id)
+    REFERENCES batch_job_instance(job_instance_id)
+);
+
+-- Create batch_job_execution_params table
+CREATE TABLE batch_job_execution_params (
+    job_execution_id LONG NOT NULL,
+    type_cd VARCHAR(6) NOT NULL,
+    key_name VARCHAR(100) NOT NULL,
+    string_val VARCHAR(250),
+    date_val DATETIME,
+    long_val LONG,
+    double_val DOUBLE,
+    identifying CHAR(1) NOT NULL,
+    CONSTRAINT job_exec_params_fk FOREIGN KEY (job_execution_id)
+    REFERENCES batch_job_execution(job_execution_id)
+);
+
+-- Create batch_step_execution table
+CREATE TABLE batch_step_execution (
+    step_execution_id COUNTER PRIMARY KEY,
+    version LONG NOT NULL,
+    step_name VARCHAR(100) NOT NULL,
+    job_execution_id LONG NOT NULL,
+    start_time DATETIME NOT NULL,
+    end_time DATETIME,
+    status VARCHAR(10),
+    commit_count LONG,
+    read_count LONG,
+    filter_count LONG,
+    write_count LONG,
+    read_skip_count LONG,
+    write_skip_count LONG,
+    process_skip_count LONG,
+    rollback_count LONG,
+    exit_code VARCHAR(2500),
+    exit_message VARCHAR(2500),
+    last_updated DATETIME,
+    CONSTRAINT job_exec_step_fk FOREIGN KEY (job_execution_id)
+    REFERENCES batch_job_execution(job_execution_id)
+);
+
+-- Create batch_step_execution_context table
+CREATE TABLE batch_step_execution_context (
+    step_execution_id LONG PRIMARY KEY,
+    short_context VARCHAR(2500) NOT NULL,
+    serialized_context LONGTEXT,
+    CONSTRAINT step_exec_ctx_fk FOREIGN KEY (step_execution_id)
+    REFERENCES batch_step_execution(step_execution_id)
+);
+
+-- Create batch_job_execution_context table
+CREATE TABLE batch_job_execution_context (
+    job_execution_id LONG PRIMARY KEY,
+    short_context VARCHAR(2500) NOT NULL,
+    serialized_context LONGTEXT,
+    CONSTRAINT job_exec_ctx_fk FOREIGN KEY (job_execution_id)
+    REFERENCES batch_job_execution(job_execution_id)
+);
