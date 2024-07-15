@@ -1,6 +1,8 @@
 package com.GenAIsolutions.ProofofConcept.Config;
 
+import com.GenAIsolutions.ProofofConcept.Entity.Vehicle;
 import com.GenAIsolutions.ProofofConcept.service.DataService;
+import com.GenAIsolutions.ProofofConcept.service.VehicleService;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -9,14 +11,22 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
+import org.springframework.batch.item.file.transform.PassThroughFieldExtractor;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
+import java.util.List;
 
 @Configuration
 @EnableBatchProcessing
@@ -24,6 +34,9 @@ public class BatchConfig {
 
     @Autowired
     private DataService dataService;
+
+    @Autowired
+    private VehicleService vehicleService;
 
     @Autowired
     @Qualifier("metadataDataSource")
@@ -52,16 +65,71 @@ public class BatchConfig {
 
     @Bean
     public Job job(JobRepository jobRepository) {
-        Step step = stepBuilderFactory.get("ETL-file-load")
+        Step step1 = stepBuilderFactory.get("ETL-file-load")
                 .tasklet((contribution, chunkContext) -> {
                     dataService.exportDataToJson();
                     return RepeatStatus.FINISHED;
                 }).build();
 
+        Step step2 = stepBuilderFactory.get("ETL-vehicle-export")
+                .<Vehicle, Vehicle>chunk(10)
+                .reader(vehicleItemReader())
+                .processor(vehicleItemProcessor())
+                .writer(vehicleItemWriter())
+                .transactionManager(batchTransactionManager)
+                .build();
+
         return jobBuilderFactory.get("ETL-Load")
                 .incrementer(new RunIdIncrementer())
-                .start(step)
+                .start(step1)
+                .next(step2)
                 .repository(jobRepository)
+                .build();
+    }
+
+    @Bean
+    public ItemReader<Vehicle> vehicleItemReader() {
+        return new ItemReader<Vehicle>() {
+            private List<Vehicle> vehicleList = null;
+            private int nextVehicleIndex;
+
+            @Override
+            public Vehicle read() throws Exception {
+                if (vehicleList == null) {
+                    vehicleList = vehicleService.findAll();
+                }
+
+                Vehicle nextVehicle = null;
+
+                if (nextVehicleIndex < vehicleList.size()) {
+                    nextVehicle = vehicleList.get(nextVehicleIndex);
+                    nextVehicleIndex++;
+                }
+
+                return nextVehicle;
+            }
+        };
+    }
+
+    @Bean
+    public ItemProcessor<Vehicle, Vehicle> vehicleItemProcessor() {
+        return vehicle -> {
+            // Implement any processing logic if needed
+            return vehicle;
+        };
+    }
+
+    @Bean
+    public ItemWriter<Vehicle> vehicleItemWriter() {
+        return new FlatFileItemWriterBuilder<Vehicle>()
+                .name("vehicleItemWriter")
+                .resource(new FileSystemResource("output/vehicles.csv"))
+                .lineAggregator(new DelimitedLineAggregator<Vehicle>() {
+                    {
+                        setDelimiter(",");
+                        setFieldExtractor(new PassThroughFieldExtractor<>());
+                    }
+                })
                 .build();
     }
 }
