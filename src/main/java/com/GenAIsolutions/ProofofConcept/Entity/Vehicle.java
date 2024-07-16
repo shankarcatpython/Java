@@ -2,14 +2,16 @@ package com.GenAIsolutions.ProofofConcept.Entity;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import javax.persistence.Table;
 
 @Entity
+@Table(name = "vehicles")
 public class Vehicle {
-	@Id
+    @Id
     private Long id;
     private String url;
     private String region;
-    private Integer price;
+    private Long price; // Adjusted to Long for compatibility with PostgreSQL bigint
     private Integer year;
     private String manufacturer;
     private String model;
@@ -29,7 +31,7 @@ public class Vehicle {
     private Float lat;
     private Float lon;
 
-    // Getters and Setters
+    // Getters and Setters for all fields
 
     public Long getId() {
         return id;
@@ -55,11 +57,11 @@ public class Vehicle {
         this.region = region;
     }
 
-    public Integer getPrice() {
+    public Long getPrice() {
         return price;
     }
 
-    public void setPrice(Integer price) {
+    public void setPrice(Long price) {
         this.price = price;
     }
 

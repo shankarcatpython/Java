@@ -11,12 +11,11 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
-import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
 import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
-import org.springframework.batch.item.file.transform.PassThroughFieldExtractor;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -74,7 +73,6 @@ public class BatchConfig {
         Step step2 = stepBuilderFactory.get("ETL-vehicle-export")
                 .<Vehicle, Vehicle>chunk(10)
                 .reader(vehicleItemReader())
-                .processor(vehicleItemProcessor())
                 .writer(vehicleItemWriter())
                 .transactionManager(batchTransactionManager)
                 .build();
@@ -97,6 +95,7 @@ public class BatchConfig {
             public Vehicle read() throws Exception {
                 if (vehicleList == null) {
                     vehicleList = vehicleService.findAll();
+                    System.out.println("Loaded " + vehicleList.size() + " vehicles from database."); // Check if vehicles are loaded
                 }
 
                 Vehicle nextVehicle = null;
@@ -104,21 +103,14 @@ public class BatchConfig {
                 if (nextVehicleIndex < vehicleList.size()) {
                     nextVehicle = vehicleList.get(nextVehicleIndex);
                     nextVehicleIndex++;
+                } else {
+                    System.out.println("No more vehicles to read."); // Check if reader reaches the end of the list
                 }
 
                 return nextVehicle;
             }
         };
     }
-
-    @Bean
-    public ItemProcessor<Vehicle, Vehicle> vehicleItemProcessor() {
-        return vehicle -> {
-            // Implement any processing logic if needed
-            return vehicle;
-        };
-    }
-
     @Bean
     public ItemWriter<Vehicle> vehicleItemWriter() {
         return new FlatFileItemWriterBuilder<Vehicle>()
@@ -127,7 +119,11 @@ public class BatchConfig {
                 .lineAggregator(new DelimitedLineAggregator<Vehicle>() {
                     {
                         setDelimiter(",");
-                        setFieldExtractor(new PassThroughFieldExtractor<>());
+                        setFieldExtractor(new BeanWrapperFieldExtractor<Vehicle>() {
+                            {
+                                setNames(new String[]{"id", "manufacturer", "model", "price"}); // Adjust as per your Vehicle fields
+                            }
+                        });
                     }
                 })
                 .build();
